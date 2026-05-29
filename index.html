@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <title>CAMSO EAN</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
@@ -21,69 +20,68 @@
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
   .card-header{padding:14px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)}
   .step{width:24px;height:24px;border-radius:50%;background:var(--accent);color:#000;font-size:12px;font-weight:700;display:grid;place-items:center;flex-shrink:0}
+  .step.green{background:var(--accent2)}
   .card-header span{font-size:14px;font-weight:500}
-  .pad{padding:16px}
 
-  /* SCANNER */
+  /* PALMARE — sempre visibile in cima */
+  .scanner-input-wrap{
+    padding:14px 16px;
+    display:flex;flex-direction:column;gap:8px;
+  }
+  .scanner-label{
+    font-size:11px;font-weight:600;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--muted);
+    display:flex;align-items:center;gap:6px;
+  }
+  .scanner-dot{
+    width:8px;height:8px;border-radius:50%;
+    background:var(--accent2);
+    box-shadow:0 0 6px var(--accent2);
+    animation:pulse 2s infinite;
+  }
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .scanner-field{
+    width:100%;
+    background:rgba(0,212,170,.05);
+    border:1.5px solid rgba(0,212,170,.3);
+    border-radius:10px;
+    padding:14px 16px;
+    color:var(--text);
+    font-family:"DM Mono",monospace;
+    font-size:16px;
+    outline:none;
+    -webkit-appearance:none;
+    caret-color:var(--accent2);
+    transition:border-color .2s;
+  }
+  .scanner-field:focus{border-color:var(--accent2);background:rgba(0,212,170,.08)}
+  .scanner-field::placeholder{color:var(--muted);font-family:"DM Sans",sans-serif;font-size:14px}
+  .scanner-hint{font-size:11px;color:var(--muted);text-align:center}
+
+  /* CAMERA SCANNER */
   #scannerWrap{
     position:relative;background:#000;
     width:100%;aspect-ratio:4/3;
     display:none;overflow:hidden;
   }
   #scannerWrap video{width:100%;height:100%;object-fit:cover;display:block}
-  #scannerWrap canvas.drawingBuffer{
-    position:absolute;top:0;left:0;
-    width:100%!important;height:100%!important;
-    opacity:.4;
-  }
-  .scan-overlay{
-    position:absolute;inset:0;
-    display:flex;align-items:center;justify-content:center;
-    pointer-events:none;
-  }
-  .scan-box{
-    width:80%;height:25%;
-    border:2px solid var(--accent);
-    border-radius:6px;
-    box-shadow:0 0 0 2000px rgba(0,0,0,.5);
-  }
-  .scan-hint{
-    position:absolute;bottom:12px;left:50%;transform:translateX(-50%);
-    font-size:11px;color:rgba(255,255,255,.8);
-    background:rgba(0,0,0,.55);padding:4px 12px;border-radius:20px;
-    white-space:nowrap;
-  }
-  .scan-detected{
-    position:absolute;top:12px;left:50%;transform:translateX(-50%);
-    font-size:12px;font-weight:600;color:#000;
-    background:var(--accent);padding:5px 14px;border-radius:20px;
-    white-space:nowrap;display:none;
-  }
+  #scannerWrap canvas.drawingBuffer{position:absolute;top:0;left:0;width:100%!important;height:100%!important;opacity:.4}
+  .scan-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+  .scan-box{width:80%;height:28%;border:2px solid var(--accent);border-radius:6px;box-shadow:0 0 0 2000px rgba(0,0,0,.5)}
+  .scan-hint-cam{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);font-size:11px;color:rgba(255,255,255,.8);background:rgba(0,0,0,.55);padding:4px 12px;border-radius:20px;white-space:nowrap}
+  .scan-detected{position:absolute;top:12px;left:50%;transform:translateX(-50%);font-size:12px;font-weight:600;color:#000;background:var(--accent);padding:5px 14px;border-radius:20px;white-space:nowrap;display:none}
 
   /* BUTTONS */
-  .btn{
-    display:flex;align-items:center;justify-content:center;gap:8px;
-    width:100%;padding:15px;border-radius:10px;border:none;
-    font-size:15px;font-weight:600;font-family:"DM Sans",sans-serif;
-    cursor:pointer;-webkit-appearance:none;appearance:none;
-    transition:transform .1s,opacity .15s;min-height:52px;
-  }
+  .pad{padding:14px 16px}
+  .btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:15px;border-radius:10px;border:none;font-size:15px;font-weight:600;font-family:"DM Sans",sans-serif;cursor:pointer;-webkit-appearance:none;transition:transform .1s,opacity .15s;min-height:52px}
   .btn:active{transform:scale(.97);opacity:.85}
   .btn:disabled{opacity:.35;cursor:not-allowed}
   .btn-primary{background:var(--accent);color:#000}
-  .btn-outline{background:transparent;color:var(--text);border:1.5px solid var(--border);margin-top:10px}
   .btn-danger{background:rgba(255,77,109,.15);color:var(--danger);border:1.5px solid rgba(255,77,109,.3);margin-top:10px}
   .btn-print{background:var(--accent);color:#000;margin-top:4px}
 
-  /* INPUT */
-  .input-field{
-    width:100%;background:rgba(255,255,255,.06);
-    border:1.5px solid var(--border);border-radius:10px;
-    padding:14px 16px;color:var(--text);
-    font-family:"DM Mono",monospace;font-size:16px;
-    outline:none;-webkit-appearance:none;appearance:none;
-    margin-bottom:12px;display:block;
-  }
+  /* INPUT MANUALE */
+  .input-field{width:100%;background:rgba(255,255,255,.06);border:1.5px solid var(--border);border-radius:10px;padding:14px 16px;color:var(--text);font-family:"DM Mono",monospace;font-size:16px;outline:none;-webkit-appearance:none;margin-bottom:12px;display:block}
   .input-field:focus{border-color:var(--accent)}
   .input-field::placeholder{color:var(--muted);font-family:"DM Sans",sans-serif;font-size:15px}
 
@@ -105,10 +103,7 @@
   .result-ean{font-family:"DM Mono",monospace;font-size:22px;font-weight:600;letter-spacing:.05em;color:var(--accent)}
   .result-footer{padding:0 16px 16px}
   .no-ean{background:rgba(255,180,0,.08);border:1px solid rgba(255,180,0,.3);border-radius:8px;padding:12px;font-size:13px;color:#ffb400;display:none;margin:0 16px 12px}
-  #uploadInput{display:none}
-  canvas{display:none}
 
-  /* PRINT */
   @media print{
     body>*:not(#printArea){display:none!important}
     #printArea{display:block!important}
@@ -116,7 +111,7 @@
     .pl-title{font-size:8pt;font-weight:bold;margin-bottom:3mm;line-height:1.3}
     .pl-barcode{text-align:center;margin:2mm 0}
     .pl-ean{text-align:center;font-size:10pt;letter-spacing:.1em;margin-bottom:3mm;font-family:"Courier New",monospace}
-    .pl-row{display:flex;justify-content:space-between;border-top:.5px solid #ccc;padding-top:2mm;font-size:7pt}
+    .pl-row{display:flex;justify-content:space-between;border-top:.5px solid #ccc;padding-top:2mm}
     .pl-block{display:flex;flex-direction:column;gap:1mm}
     .pl-key{font-size:6pt;text-transform:uppercase;color:#888}
     .pl-val{font-size:7.5pt;font-weight:700;color:#000}
@@ -132,26 +127,45 @@
       <rect x="13" y="3" width="4" height="18"/><rect x="19" y="3" width="2" height="18"/>
     </svg>
   </div>
-  <div>
-    <h1>CAMSO EAN</h1>
-    <p>ID Logistics — Torino EDC</p>
-  </div>
+  <div><h1>CAMSO EAN</h1><p>ID Logistics — Torino EDC</p></div>
   <div class="badge" id="dbBadge">…</div>
 </header>
 
 <main>
 
-  <!-- SCANNER BARCODE -->
+  <!-- 1. PALMARE -->
   <div class="card">
     <div class="card-header">
-      <div class="step">1</div>
-      <span>Scansiona barcode etichetta</span>
+      <div class="step green">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round">
+          <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+      </div>
+      <span>Scanner palmare</span>
+    </div>
+    <div class="scanner-input-wrap">
+      <div class="scanner-label">
+        <div class="scanner-dot"></div>
+        In ascolto — punta e scansiona
+      </div>
+      <input type="text" id="palmareInput" class="scanner-field"
+             placeholder="Scansiona barcode con il palmare..."
+             autocomplete="off" autocorrect="off" autocapitalize="off"
+             spellcheck="false">
+      <div class="scanner-hint">Il campo si svuota automaticamente dopo ogni lettura</div>
+    </div>
+  </div>
+
+  <!-- 2. CAMERA -->
+  <div class="card">
+    <div class="card-header">
+      <div class="step">2</div>
+      <span>Scanner fotocamera</span>
     </div>
     <div id="scannerWrap">
-      <div class="scan-overlay">
-        <div class="scan-box"></div>
-      </div>
-      <div class="scan-hint">Inquadra il barcode nell'area gialla</div>
+      <div class="scan-overlay"><div class="scan-box"></div></div>
+      <div class="scan-hint-cam">Inquadra il barcode nell'area gialla</div>
       <div class="scan-detected" id="scanDetected"></div>
     </div>
     <div class="pad">
@@ -160,19 +174,19 @@
           <path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/>
           <rect x="7" y="7" width="10" height="10" rx="1"/>
         </svg>
-        Avvia scanner
+        Avvia fotocamera
       </button>
       <button class="btn btn-danger" id="stopBtn" type="button" style="display:none">
-        ✕ Ferma scanner
+        ✕ Ferma fotocamera
       </button>
     </div>
   </div>
 
-  <!-- MANUALE -->
+  <!-- 3. MANUALE -->
   <div class="card">
     <div class="card-header">
-      <div class="step">2</div>
-      <span>Oppure inserisci PID manuale</span>
+      <div class="step">3</div>
+      <span>Inserimento manuale PID</span>
     </div>
     <div class="pad">
       <input type="text" id="pidInput" class="input-field"
@@ -189,12 +203,7 @@
   </div>
 
   <!-- STATUS -->
-  <div id="statusCard">
-    <div class="status-row">
-      <div class="spinner"></div>
-      <div id="statusText">Ricerca in corso…</div>
-    </div>
-  </div>
+  <div id="statusCard"><div class="status-row"><div class="spinner"></div><div id="statusText">Ricerca...</div></div></div>
 
   <!-- ERROR -->
   <div id="errorCard"></div>
@@ -202,28 +211,14 @@
   <!-- RESULT -->
   <div id="resultCard">
     <div class="result-header">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="2.5" stroke-linecap="round">
-        <polyline points="20 6 9 17 4 12"/>
-      </svg>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" stroke-width="2.5" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg>
       <span>Articolo trovato</span>
     </div>
     <div class="result-body">
-      <div class="result-row">
-        <div class="result-label">Descrizione</div>
-        <div class="result-value" id="resDesc">—</div>
-      </div>
-      <div class="result-row">
-        <div class="result-label">CAI</div>
-        <div class="result-value mono" id="resCAI">—</div>
-      </div>
-      <div class="result-row">
-        <div class="result-label">PID</div>
-        <div class="result-value mono" id="resPID">—</div>
-      </div>
-      <div class="result-row">
-        <div class="result-label">EAN-13</div>
-        <div class="result-ean" id="resEAN">—</div>
-      </div>
+      <div class="result-row"><div class="result-label">Descrizione</div><div class="result-value" id="resDesc">—</div></div>
+      <div class="result-row"><div class="result-label">CAI</div><div class="result-value mono" id="resCAI">—</div></div>
+      <div class="result-row"><div class="result-label">PID</div><div class="result-value mono" id="resPID">—</div></div>
+      <div class="result-row"><div class="result-label">EAN-13</div><div class="result-ean" id="resEAN">—</div></div>
     </div>
     <div class="no-ean" id="noEanWarn">⚠️ Nessun EAN disponibile per questo articolo.</div>
     <div class="result-footer">
@@ -240,21 +235,14 @@
 
 </main>
 
-<!-- PRINT -->
 <div id="printArea" style="display:none">
   <div class="print-label">
     <div class="pl-title" id="plTitle"></div>
     <div class="pl-barcode" id="plBarcode"></div>
     <div class="pl-ean" id="plEan"></div>
     <div class="pl-row">
-      <div class="pl-block">
-        <div class="pl-key">CAI</div>
-        <div class="pl-val" id="plCai"></div>
-      </div>
-      <div class="pl-block" style="text-align:right">
-        <div class="pl-key">PID</div>
-        <div class="pl-val" id="plPid"></div>
-      </div>
+      <div class="pl-block"><div class="pl-key">CAI</div><div class="pl-val" id="plCai"></div></div>
+      <div class="pl-block" style="text-align:right"><div class="pl-key">PID</div><div class="pl-val" id="plPid"></div></div>
     </div>
   </div>
 </div>
@@ -272,131 +260,156 @@ function lookup(raw) {
   if (byPID[k]) return byPID[k];
   var n = k.replace(/\s+/g,'');
   var keys = Object.keys(byPID);
-  for (var i=0; i<keys.length; i++) {
+  for (var i=0;i<keys.length;i++) {
     if (keys[i].replace(/\s+/g,'') === n) return byPID[keys[i]];
   }
   return null;
 }
 
-// ── ELEMENTI ──────────────────────────────────
-var scanBtn    = document.getElementById('scanBtn');
-var stopBtn    = document.getElementById('stopBtn');
-var scannerWrap= document.getElementById('scannerWrap');
-var scanDetected=document.getElementById('scanDetected');
-var pidInput   = document.getElementById('pidInput');
-var searchBtn  = document.getElementById('searchBtn');
-var statusCard = document.getElementById('statusCard');
-var statusText = document.getElementById('statusText');
-var errorCard  = document.getElementById('errorCard');
-var resultCard = document.getElementById('resultCard');
-var noEanWarn  = document.getElementById('noEanWarn');
-var printBtn   = document.getElementById('printBtn');
-var current    = null;
-var scanning   = false;
-var lastCode   = null;
-var debounceTimer = null;
+// ── PALMARE ───────────────────────────────────
+// Il palmare si comporta come tastiera: invia i caratteri velocemente + Enter
+// Rileviamo la velocità di input: se arriva tutto in < 100ms = scanner
+var palmareInput = document.getElementById('palmareInput');
+var palmareBuffer = '';
+var palmareTimer  = null;
+var lastKeyTime   = 0;
 
-// ── SCANNER ───────────────────────────────────
+// Mantieni il focus sul campo palmare quando non si usa altro
+function refocusPalmare() {
+  // Solo se nessun altro input è attivo
+  var active = document.activeElement;
+  if (active && (active.id === 'pidInput')) return;
+  palmareInput.focus();
+}
+
+// Focus automatico all'avvio
+window.addEventListener('load', function() {
+  setTimeout(refocusPalmare, 300);
+});
+
+// Dopo un risultato, rifocalizza il palmare
+function scheduleRefocus() {
+  setTimeout(refocusPalmare, 1500);
+}
+
+palmareInput.onkeydown = function(e) {
+  if (e.key === 'Enter' || e.keyCode === 13) {
+    e.preventDefault();
+    var val = palmareInput.value.trim();
+    if (val) {
+      palmareInput.value = '';
+      doSearch(val);
+      scheduleRefocus();
+    }
+  }
+};
+
+// Anche input event per palmari che non mandano keydown
+palmareInput.oninput = function() {
+  var now = Date.now();
+  // Reset timer — se non arriva Enter entro 200ms, prova comunque
+  clearTimeout(palmareTimer);
+  palmareTimer = setTimeout(function() {
+    var val = palmareInput.value.trim();
+    // I palmari mandano tutto in < 50ms per carattere
+    // Se il valore sembra un PID completo (contiene punti e numeri) cerca subito
+    if (val && /^[\d.]+$/.test(val) && val.length >= 5) {
+      palmareInput.value = '';
+      doSearch(val);
+      scheduleRefocus();
+    }
+  }, 200);
+};
+
+// ── CAMERA SCANNER ────────────────────────────
+var scanBtn     = document.getElementById('scanBtn');
+var stopBtn     = document.getElementById('stopBtn');
+var scannerWrap = document.getElementById('scannerWrap');
+var scanDetected= document.getElementById('scanDetected');
+var scanning    = false;
+var lastCode    = null;
+var debounceT   = null;
+
 scanBtn.onclick = function() {
   if (scanning) return;
   hideAll();
   scannerWrap.style.display = 'block';
   scanBtn.style.display = 'none';
   stopBtn.style.display = 'flex';
-  scanning = true;
-  lastCode = null;
+  scanning = true; lastCode = null;
 
   Quagga.init({
-    inputStream: {
-      name: 'Live',
-      type: 'LiveStream',
-      target: scannerWrap,
-      constraints: {
-        facingMode: 'environment',
-        width: { ideal: 1280 },
-        height: { ideal: 720 }
-      }
+    inputStream:{
+      name:'Live', type:'LiveStream', target:scannerWrap,
+      constraints:{ facingMode:'environment', width:{ideal:1280}, height:{ideal:720} }
     },
-    decoder: {
-      readers: ['code_128_reader', 'code_39_reader', 'ean_reader', 'ean_8_reader']
-    },
-    locate: true,
-    numOfWorkers: 2,
-    frequency: 10
-  }, function(err) {
-    if (err) {
-      stopScanner();
-      showError('Camera non disponibile: ' + err.message);
-      return;
-    }
+    decoder:{ readers:['code_128_reader','code_39_reader','ean_reader'] },
+    locate:true, numOfWorkers:2, frequency:10
+  }, function(err){
+    if(err){ stopScanner(); showError('Camera non disponibile: ' + err.message); return; }
     Quagga.start();
   });
 
-  Quagga.onDetected(function(result) {
+  Quagga.onDetected(function(result){
     var code = result.codeResult.code;
-    if (!code || code === lastCode) return;
-
-    // vibrazione feedback
-    if (navigator.vibrate) navigator.vibrate(100);
-
-    // mostra il codice rilevato
+    if(!code || code === lastCode) return;
+    if(navigator.vibrate) navigator.vibrate(100);
     scanDetected.textContent = code;
     scanDetected.style.display = 'block';
-
-    // debounce: aspetta 600ms senza nuovi codici prima di processare
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(function() {
+    clearTimeout(debounceT);
+    debounceT = setTimeout(function(){
       lastCode = code;
       stopScanner();
-      pidInput.value = code;
+      document.getElementById('pidInput').value = code;
       doSearch(code);
     }, 600);
   });
 };
 
-stopBtn.onclick = function() {
-  stopScanner();
-};
+stopBtn.onclick = function(){ stopScanner(); };
 
-function stopScanner() {
-  if (!scanning) return;
+function stopScanner(){
+  if(!scanning) return;
   scanning = false;
-  clearTimeout(debounceTimer);
-  try { Quagga.stop(); } catch(e) {}
+  clearTimeout(debounceT);
+  try{ Quagga.stop(); }catch(e){}
   scannerWrap.style.display = 'none';
   scanDetected.style.display = 'none';
   scanBtn.style.display = 'flex';
   stopBtn.style.display = 'none';
 }
 
-// ── RICERCA MANUALE ───────────────────────────
-searchBtn.onclick = function() { doSearch(pidInput.value); };
-pidInput.onkeydown = function(e) {
-  if (e.keyCode === 13 || e.key === 'Enter') {
-    e.preventDefault();
-    doSearch(pidInput.value);
-  }
+// ── MANUALE ───────────────────────────────────
+var searchBtn = document.getElementById('searchBtn');
+var pidInput  = document.getElementById('pidInput');
+
+searchBtn.onclick = function(){ doSearch(pidInput.value); };
+pidInput.onkeydown = function(e){
+  if(e.keyCode===13||e.key==='Enter'){ e.preventDefault(); doSearch(pidInput.value); }
 };
 
+// ── RICERCA ───────────────────────────────────
 function doSearch(pid) {
-  if (!pid || !pid.trim()) { showError('Inserisci un codice PID.'); return; }
+  if(!pid||!pid.trim()){ showError('Inserisci un codice PID.'); return; }
   hideAll();
   showStatus('Ricerca "' + pid.trim() + '"...');
-  setTimeout(function() {
+  setTimeout(function(){
     var r = lookup(pid);
     hideAll();
-    if (!r) {
+    if(!r){
       showError('Nessun articolo trovato per PID: <b>' + pid.trim() + '</b>');
     } else {
       current = r;
       showResult(r);
     }
-  }, 100);
+  }, 80);
 }
 
 // ── STAMPA ────────────────────────────────────
-printBtn.onclick = function() {
-  if (!current || !current.ean) return;
+var current = null;
+var printBtn = document.getElementById('printBtn');
+printBtn.onclick = function(){
+  if(!current||!current.ean) return;
   document.getElementById('plTitle').textContent = current.desc;
   document.getElementById('plBarcode').innerHTML = ean13svg(current.ean);
   document.getElementById('plEan').textContent   = current.ean;
@@ -406,48 +419,39 @@ printBtn.onclick = function() {
 };
 
 // ── EAN-13 SVG ────────────────────────────────
-function ean13svg(ean) {
-  var L=[[0,0,0,1,1,0,1],[0,0,1,1,0,0,1],[0,0,1,0,0,1,1],[0,1,1,1,1,0,1],
-         [0,1,0,0,0,1,1],[0,1,1,0,0,0,1],[0,1,0,1,1,1,1],[0,1,1,1,0,1,1],
-         [0,1,1,0,1,1,1],[0,0,0,1,0,1,1]];
+function ean13svg(ean){
+  var L=[[0,0,0,1,1,0,1],[0,0,1,1,0,0,1],[0,0,1,0,0,1,1],[0,1,1,1,1,0,1],[0,1,0,0,0,1,1],[0,1,1,0,0,0,1],[0,1,0,1,1,1,1],[0,1,1,1,0,1,1],[0,1,1,0,1,1,1],[0,0,0,1,0,1,1]];
   var G=L.map(function(b){return b.map(function(x){return x?0:1}).reverse();});
   var R=L.map(function(b){return b.map(function(x){return x?0:1});});
-  var FDP=[[0,0,0,0,0,0],[0,0,1,0,1,1],[0,0,1,1,0,1],[0,0,1,1,1,0],
-           [0,1,0,0,1,1],[0,1,1,0,0,1],[0,1,1,1,0,0],[0,1,0,1,0,1],
-           [0,1,0,1,1,0],[0,1,1,0,1,0]];
-  var d=ean.split('').map(Number);
-  var par=FDP[d[0]];
-  var bars=[1,0,1];
-  for(var i=0;i<6;i++){var enc=par[i]===0?L[d[i+1]]:G[d[i+1]];bars=bars.concat(enc);}
+  var FDP=[[0,0,0,0,0,0],[0,0,1,0,1,1],[0,0,1,1,0,1],[0,0,1,1,1,0],[0,1,0,0,1,1],[0,1,1,0,0,1],[0,1,1,1,0,0],[0,1,0,1,0,1],[0,1,0,1,1,0],[0,1,1,0,1,0]];
+  var d=ean.split('').map(Number),par=FDP[d[0]],bars=[1,0,1];
+  for(var i=0;i<6;i++){bars=bars.concat(par[i]===0?L[d[i+1]]:G[d[i+1]]);}
   bars=bars.concat([0,1,0,1,0]);
   for(var i=0;i<6;i++){bars=bars.concat(R[d[i+7]]);}
   bars=bars.concat([1,0,1]);
-  var Q=7,H=55,W=bars.length;
-  var rects='';
-  for(var i=0;i<bars.length;i++){
-    if(bars[i]) rects+='<rect x="'+(Q+i)+'" y="0" width="1" height="'+H+'" fill="#000"/>';
-  }
+  var Q=7,H=55,W=bars.length,rects='';
+  for(var i=0;i<bars.length;i++){if(bars[i])rects+='<rect x="'+(Q+i)+'" y="0" width="1" height="'+H+'" fill="#000"/>';}
   return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+(W+Q*2)+' '+H+'" width="'+(W+Q*2)*2+'" height="'+(H*2)+'"><rect width="'+(W+Q*2)+'" height="'+H+'" fill="#fff"/>'+rects+'</svg>';
 }
 
 // ── HELPERS ───────────────────────────────────
-function showStatus(msg){ statusText.innerHTML=msg; statusCard.style.display='block'; }
-function showError(msg){ errorCard.innerHTML=msg; errorCard.style.display='block'; }
+function showStatus(msg){document.getElementById('statusText').innerHTML=msg;document.getElementById('statusCard').style.display='block';}
+function showError(msg){document.getElementById('errorCard').innerHTML=msg;document.getElementById('errorCard').style.display='block';}
 function showResult(r){
-  document.getElementById('resDesc').textContent = r.desc||'—';
-  document.getElementById('resCAI').textContent  = r.cai ||'—';
-  document.getElementById('resPID').textContent  = r.pid ||'—';
-  document.getElementById('resEAN').textContent  = r.ean ||'—';
-  noEanWarn.style.display = r.ean ? 'none' : 'block';
-  printBtn.disabled = !r.ean;
-  resultCard.style.display = 'block';
-  setTimeout(function(){ resultCard.scrollIntoView({behavior:'smooth',block:'start'}); }, 150);
+  document.getElementById('resDesc').textContent=r.desc||'—';
+  document.getElementById('resCAI').textContent=r.cai||'—';
+  document.getElementById('resPID').textContent=r.pid||'—';
+  document.getElementById('resEAN').textContent=r.ean||'—';
+  document.getElementById('noEanWarn').style.display=r.ean?'none':'block';
+  document.getElementById('printBtn').disabled=!r.ean;
+  document.getElementById('resultCard').style.display='block';
+  setTimeout(function(){document.getElementById('resultCard').scrollIntoView({behavior:'smooth',block:'start'});},150);
 }
 function hideAll(){
-  statusCard.style.display='none';
-  errorCard.style.display='none';
-  resultCard.style.display='none';
-  noEanWarn.style.display='none';
+  document.getElementById('statusCard').style.display='none';
+  document.getElementById('errorCard').style.display='none';
+  document.getElementById('resultCard').style.display='none';
+  document.getElementById('noEanWarn').style.display='none';
 }
 </script>
 </body>
