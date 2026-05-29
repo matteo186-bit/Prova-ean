@@ -308,7 +308,7 @@ function doSearch(pid) {
     const r = lookup(pid);
     hideAll();
     if (!r) {
-      showError('Nessun articolo trovato per PID: <b>' + pid.trim() + '</b><br><small>Controlla il codice sull'etichetta.</small>');
+      showError('Nessun articolo trovato per PID: <b>' + pid.trim() + '</b><br><small>Controlla il codice sull\'etichetta.</small>');
     } else {
       current = r;
       showResult(r);
