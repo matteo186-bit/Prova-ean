@@ -358,42 +358,19 @@ function buildCPCL(r){
   // CPCL per 100x50mm, 203dpi
   // LABEL offset height
   // Coordinate in dots (1dot = ~0.125mm a 203dpi)
+  var NL = '\r\n';
   var cpcl = '';
-  cpcl += '! 0 200 200 400 1
-';          // header: offset, hres, vres, height, qty
-  cpcl += 'PAGE-WIDTH 812
-';              // larghezza pagina in dots (100mm)
-
-  // Descrizione articolo (riga 1, font 3, bold)
-  cpcl += 'SETBOLD 1
-';
-  cpcl += 'TEXT 4 0 20 20 '+desc+'
-';
-  cpcl += 'SETBOLD 0
-';
-
-  // Barcode EAN-13, height 130dots, x=60, y=55
-  cpcl += 'BARCODE EAN13 2 1 130 60 55 '+ean+'
-';
-
-  // Numero EAN sotto il barcode
-  cpcl += 'TEXT 3 0 150 200 '+ean+'
-';
-
-  // Linea separatrice
-  cpcl += 'LINE 20 230 790 230 2
-';
-
-  // CAI a sinistra
-  cpcl += 'TEXT 2 0 20 245 CAI: '+cai+'
-';
-
-  // PID a destra
-  cpcl += 'TEXT 2 0 450 245 PID: '+pid+'
-';
-
-  cpcl += 'PRINT
-';
+  cpcl += '! 0 200 200 400 1' + NL;
+  cpcl += 'PAGE-WIDTH 812' + NL;
+  cpcl += 'SETBOLD 1' + NL;
+  cpcl += 'TEXT 4 0 20 20 ' + desc + NL;
+  cpcl += 'SETBOLD 0' + NL;
+  cpcl += 'BARCODE EAN13 2 1 130 60 55 ' + ean + NL;
+  cpcl += 'TEXT 3 0 150 200 ' + ean + NL;
+  cpcl += 'LINE 20 230 790 230 2' + NL;
+  cpcl += 'TEXT 2 0 20 245 CAI: ' + cai + NL;
+  cpcl += 'TEXT 2 0 450 245 PID: ' + pid + NL;
+  cpcl += 'PRINT' + NL;
   return cpcl;
 }
 
@@ -506,7 +483,7 @@ document.getElementById('iosPrintBtn').onclick = function(){
   setTimeout(function(){
     if(document.hidden)return;
     var btStatus=document.getElementById('btStatus');
-    btStatus.textContent='Installa Zebra PrintConnect dall'App Store';
+    btStatus.textContent='Installa Zebra PrintConnect dall\'App Store';
     btStatus.className='error';
     btStatus.style.display='block';
   },2000);
