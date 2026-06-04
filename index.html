@@ -12,6 +12,7 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;700&display=swap');
   :root{--bg:#0d0f12;--surface:#161a1f;--border:#2a2f38;--accent:#e8f000;--accent2:#00d4aa;--text:#e8eaed;--muted:#7a8393;--danger:#ff4d6d;--radius:12px}
@@ -22,6 +23,14 @@
   header h1{font-size:15px;font-weight:700}
   header p{font-size:11px;color:var(--muted);margin-top:2px}
   .badge{margin-left:auto;font-size:10px;font-family:"DM Mono",monospace;color:var(--accent);background:rgba(232,240,0,.1);padding:3px 8px;border-radius:20px;border:1px solid rgba(232,240,0,.25);white-space:nowrap}
+  .import-wrap{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+  .import-drop{border:1.5px dashed var(--border);border-radius:10px;padding:18px;text-align:center;cursor:pointer;transition:border-color .2s;color:var(--muted);font-size:13px;line-height:1.6}
+  .import-drop:active{border-color:var(--accent)}
+  .import-drop.dragover{border-color:var(--accent);background:rgba(232,240,0,.05)}
+  .import-status{font-size:12px;text-align:center;padding:4px 0;display:none}
+  .import-status.ok{color:var(--accent2)}
+  .import-status.err{color:var(--danger)}
+  #importInput{display:none}
   main{padding:20px 16px;display:flex;flex-direction:column;gap:16px;max-width:520px;margin:0 auto}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
   .card-header{padding:14px 16px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--border)}
@@ -225,6 +234,32 @@
       </button>
     </div>
   </div>
+  <!-- AGGIORNA DATABASE -->
+  <div class="card">
+    <div class="card-header">
+      <div class="step" style="background:var(--muted)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <span>Aggiorna database articoli</span>
+    </div>
+    <div class="import-wrap">
+      <div class="import-drop" id="importDrop">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" style="margin-bottom:6px;opacity:.5">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
+        <div>Tocca per caricare il file Excel</div>
+        <div style="font-size:11px;margin-top:3px;opacity:.6">ArticoliCamso_XXXX.xlsx</div>
+      </div>
+      <div class="import-status" id="importStatus"></div>
+      <input type="file" id="importInput" accept=".xlsx,.xls">
+    </div>
+  </div>
+
 </main>
 
 <div id="printArea" style="display:none">
@@ -257,6 +292,148 @@ function lookup(raw){
   for(var i=0;i<keys.length;i++){if(keys[i].replace(/\s+/g,'')===n)return byPID[keys[i]];}
   return null;
 }
+
+// ── CALCOLO EAN-13 ────────────────────────────
+function calcEAN13(prefix, code) {
+  var digits = (prefix + code).split('').map(Number);
+  if(digits.length !== 12) return '';
+  var total = 0;
+  for(var i=0;i<12;i++) total += digits[i] * (i%2===0 ? 1 : 3);
+  var check = (10 - (total % 10)) % 10;
+  return prefix + code + check;
+}
+
+// ── IMPORT EXCEL ──────────────────────────────
+function loadFromExcel(file) {
+  var status = document.getElementById('importStatus');
+  status.textContent = 'Lettura file...';
+  status.className = 'import-status';
+  status.style.display = 'block';
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var data = new Uint8Array(e.target.result);
+      var wb   = XLSX.read(data, {type:'array'});
+      var ws   = wb.Sheets[wb.SheetNames[0]];
+      var rows = XLSX.utils.sheet_to_json(ws, {header:1});
+
+      if(!rows || rows.length < 2) {
+        status.textContent = 'File vuoto o non valido.';
+        status.className = 'import-status err';
+        return;
+      }
+
+      // Trova indici colonne dall'header
+      var header = rows[0].map(function(h){ return (h||'').toString().trim(); });
+      var iDesc  = header.indexOf('Descrizione Articolo Camso');
+      var iCAI   = header.indexOf('Codice Articolo (CAI)');
+      var iPID   = header.indexOf('PID');
+      var iEAN   = header.indexOf('EAN');
+      var iID    = header.indexOf('ID Prodotto');
+
+      if(iPID < 0 || iCAI < 0) {
+        status.textContent = 'Colonne PID/CAI non trovate. Verifica il file.';
+        status.className = 'import-status err';
+        return;
+      }
+
+      var newDB = [];
+      var withEAN = 0;
+      var generated = 0;
+
+      for(var i=1; i<rows.length; i++) {
+        var row = rows[i];
+        if(!row || !row[iPID]) continue;
+
+        var cai = (row[iCAI] || '').toString().trim();
+        var pid = (row[iPID] || '').toString().trim();
+        var desc= (row[iDesc]|| '').toString().trim();
+        var id  = (row[iID]  || '').toString().trim();
+        var ean = (iEAN >= 0 && row[iEAN]) ? row[iEAN].toString().trim() : '';
+
+        // Se EAN mancante, calcolalo dal CAI
+        if(!ean && cai.startsWith('CSO_')) {
+          var code = cai.replace('CSO_','').trim();
+          if(code.length === 6 && /^\d+$/.test(code)) {
+            ean = calcEAN13('352870', code);
+            generated++;
+          }
+        } else if(ean) {
+          withEAN++;
+        }
+
+        newDB.push({pid:pid, desc:desc, cai:cai, ean:ean, id:id});
+      }
+
+      // Aggiorna il database in memoria
+      byPID = {};
+      newDB.forEach(function(r){ if(r.pid) byPID[r.pid.trim().toLowerCase()] = r; });
+
+      var total = newDB.length;
+      document.getElementById('dbBadge').textContent = total + ' art.';
+
+      status.textContent = 'Caricati ' + total + ' articoli (' + (withEAN+generated) + ' con EAN)';
+      status.className = 'import-status ok';
+
+      // Salva in localStorage per la prossima sessione
+      try {
+        localStorage.setItem('camso_db', JSON.stringify(newDB));
+        localStorage.setItem('camso_db_name', file.name);
+        status.textContent += ' — salvato per uso offline';
+      } catch(e) {}
+
+    } catch(err) {
+      status.textContent = 'Errore lettura: ' + err.message;
+      status.className = 'import-status err';
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// Carica DB da localStorage se disponibile
+(function(){
+  try {
+    var saved = localStorage.getItem('camso_db');
+    var savedName = localStorage.getItem('camso_db_name');
+    if(saved) {
+      var parsed = JSON.parse(saved);
+      byPID = {};
+      parsed.forEach(function(r){ if(r.pid) byPID[r.pid.trim().toLowerCase()] = r; });
+      document.getElementById('dbBadge').textContent = parsed.length + ' art.*';
+      var status = document.getElementById('importStatus');
+      status.textContent = 'DB: ' + (savedName || 'file importato') + ' (' + parsed.length + ' art.)';
+      status.className = 'import-status ok';
+      status.style.display = 'block';
+    }
+  } catch(e) {}
+})();
+
+// Drag & drop e click
+var importDrop  = document.getElementById('importDrop');
+var importInput = document.getElementById('importInput');
+
+importDrop.onclick = function(){ importInput.click(); };
+
+importInput.onchange = function(){
+  var f = importInput.files[0];
+  if(f) loadFromExcel(f);
+  importInput.value = '';
+};
+
+importDrop.addEventListener('dragover', function(e){
+  e.preventDefault();
+  importDrop.classList.add('dragover');
+});
+importDrop.addEventListener('dragleave', function(){
+  importDrop.classList.remove('dragover');
+});
+importDrop.addEventListener('drop', function(e){
+  e.preventDefault();
+  importDrop.classList.remove('dragover');
+  var f = e.dataTransfer.files[0];
+  if(f) loadFromExcel(f);
+});
 
 // ── RILEVA PIATTAFORMA ────────────────────────
 var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -409,7 +586,14 @@ document.getElementById('btConnectBtn').onclick = async function(){
     btStatus.style.display = 'block';
 
     btDevice = await navigator.bluetooth.requestDevice({
-      filters:[{namePrefix:'ZQ520'},{namePrefix:'Zebra'}],
+      filters:[
+        {namePrefix:'ZQ-'},
+        {namePrefix:'ZQ5'},
+        {namePrefix:'Zebra'},
+        {namePrefix:'ZQ'},
+        {namePrefix:'ZD'},
+        {namePrefix:'ZT'}
+      ],
       optionalServices: BT_SERVICES_TRY
     });
 
