@@ -586,14 +586,7 @@ document.getElementById('btConnectBtn').onclick = async function(){
     btStatus.style.display = 'block';
 
     btDevice = await navigator.bluetooth.requestDevice({
-      filters:[
-        {namePrefix:'ZQ-'},
-        {namePrefix:'ZQ5'},
-        {namePrefix:'Zebra'},
-        {namePrefix:'ZQ'},
-        {namePrefix:'ZD'},
-        {namePrefix:'ZT'}
-      ],
+      acceptAllDevices: true,
       optionalServices: BT_SERVICES_TRY
     });
 
