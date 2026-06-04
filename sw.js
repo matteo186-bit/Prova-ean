@@ -1,4 +1,4 @@
-const CACHE = 'camso-ean-v1';
+const CACHE = 'camso-ean-v5';
 const ASSETS = [
   '/Prova-ean/',
   '/Prova-ean/index.html',

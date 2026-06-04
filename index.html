@@ -665,19 +665,26 @@ document.getElementById('btPrintBtn').onclick = async function(){
 document.getElementById('iosPrintBtn').onclick = function(){
   if(!current)return;
   var cpcl = buildCPCL(current);
-  // Encode per URL
   var encoded = encodeURIComponent(cpcl);
-  // PrintConnect URL scheme
-  var url = 'printconnect://print?data='+encoded;
-  window.location.href = url;
-  // Fallback dopo 2s: se PrintConnect non apre, suggerisci installazione
+  var btStatus = document.getElementById('btStatus');
+  btStatus.style.display = 'block';
+  btStatus.className = '';
+  btStatus.textContent = 'Apertura PrintConnect...';
+
+  if(/android/i.test(navigator.userAgent)) {
+    var intentUrl = 'intent://print?data=' + encoded +
+      '#Intent;scheme=printconnect;package=com.zebra.printconnect;end';
+    window.location.href = intentUrl;
+  } else {
+    window.location.href = 'printconnect://print?data=' + encoded;
+  }
+
   setTimeout(function(){
-    if(document.hidden)return;
-    var btStatus=document.getElementById('btStatus');
-    btStatus.textContent='Installa Zebra PrintConnect dall\'App Store';
-    btStatus.className='error';
-    btStatus.style.display='block';
-  },2000);
+    if(!document.hidden){
+      btStatus.textContent = 'PrintConnect non risponde. Verifica che sia installato e configurato.';
+      btStatus.className = 'error';
+    }
+  }, 2500);
 };
 
 // ── BROWSER PRINT (fallback) ──────────────────
