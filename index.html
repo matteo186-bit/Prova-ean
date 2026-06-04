@@ -221,7 +221,7 @@
           <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
           <rect x="6" y="14" width="12" height="8"/>
         </svg>
-        Stampa con PrintConnect
+        Stampa con PrintConnect (Android/iOS)
       </button>
       <!-- Fallback browser print -->
       <button class="btn btn-primary" id="browserPrintBtn" type="button" style="margin-top:8px">
@@ -439,14 +439,11 @@ importDrop.addEventListener('drop', function(e){
 var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 var hasBT = 'bluetooth' in navigator;
 
-// Mostra bottoni appropriati
-if(hasBT && !isIOS){
-  document.getElementById('btConnectBtn').style.display='flex';
-} else if(isIOS){
-  document.getElementById('iosPrintBtn').style.display='flex';
-} else {
-  // Android senza BT API (raro) - solo browser print
-}
+// Mostra PrintConnect su tutti (Android e iOS)
+// Il BT Web non funziona con stampanti Zebra Classic BT
+document.getElementById('iosPrintBtn').style.display='flex';
+document.getElementById('btConnectBtn').style.display='none';
+document.getElementById('btPrintBtn').style.display='none';
 
 // ── PWA INSTALL ───────────────────────────────
 var deferredPrompt=null;
