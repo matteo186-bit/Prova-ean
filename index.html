@@ -712,135 +712,65 @@ document.getElementById('browserPrintBtn').onclick = function(){
   window.print();
 };
 
-// ── MX06 Cat-Printer Protocol ────────────────────
-// Based on https://github.com/NaitLee/Cat-Printer
-// MX06 uses image-based printing: convert text to bitmap, send as image
-
-// Build a packet per il protocollo MX06
-function mx06Packet(cmd, data) {
-  var packet = [];
-  // Header: 51 78 [cmd] 00 [len_lo] [len_hi] [data...] [checksum] ff
-  packet.push(0x51, 0x78);
-  packet.push(cmd);
-  packet.push(0x00);
-  var len = data ? data.length : 0;
-  packet.push(len & 0xFF);
-  packet.push((len >> 8) & 0xFF);
-  if(data) for(var i=0;i<data.length;i++) packet.push(data[i]);
-  // checksum = XOR di tutti i byte data
-  var chk = 0;
-  if(data) for(var i=0;i<data.length;i++) chk ^= data[i];
-  packet.push(chk);
-  packet.push(0xFF);
-  return packet;
-}
-
-function buildMX06(r) {
-  var desc = (r.desc || '').substring(0,28);
+// ── ESC/POS GENERATOR (58mm termica BLE) ────────
+function buildESCPOS(r) {
+  var desc = r.desc || '';
   var ean  = r.ean  || '';
   var cai  = r.cai  || '';
   var pid  = r.pid  || '';
+  if(desc.length > 32) desc = desc.substring(0,30)+'..';
 
-  // Usa canvas per renderizzare il testo come immagine bitmap
-  var canvas = document.createElement('canvas');
-  var W = 384; // larghezza MX06 in pixel
-  canvas.width = W;
-  canvas.height = 300;
-  var ctx = canvas.getContext('2d');
+  var ESC = 0x1B, GS = 0x1D;
+  var cmd = [];
 
-  // Sfondo bianco
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0,0,W,300);
-  ctx.fillStyle = '#000000';
-
-  // Descrizione
-  ctx.font = 'bold 22px monospace';
-  ctx.textAlign = 'center';
-  // Word wrap
-  var words = desc.split(' ');
-  var line = '', y = 30;
-  for(var i=0;i<words.length;i++){
-    var test = line + words[i] + ' ';
-    if(ctx.measureText(test).width > W-10 && line !== '') {
-      ctx.fillText(line.trim(), W/2, y);
-      line = words[i] + ' ';
-      y += 26;
-    } else { line = test; }
+  function addBytes() {
+    for(var i=0;i<arguments.length;i++) cmd.push(arguments[i]);
   }
-  ctx.fillText(line.trim(), W/2, y);
-  y += 30;
-
-  // EAN numero
-  ctx.font = 'bold 18px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(ean, W/2, y);
-  y += 20;
-
-  // Linea
-  ctx.fillRect(10, y, W-20, 2);
-  y += 12;
-
-  // CAI e PID
-  ctx.font = '16px monospace';
-  ctx.textAlign = 'left';
-  ctx.fillText('CAI: ' + cai, 10, y);
-  y += 22;
-  ctx.fillText('PID: ' + pid, 10, y);
-  y += 30;
-
-  // Ritaglia al contenuto
-  var finalH = y;
-  canvas.height = finalH;
-  // Ridisegna
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0,0,W,finalH);
-  ctx.fillStyle = '#000000';
-  ctx.font = 'bold 22px monospace';
-  ctx.textAlign = 'center';
-  var words2 = desc.split(' ');
-  var line2='', y2=30;
-  for(var i=0;i<words2.length;i++){
-    var test2=line2+words2[i]+' ';
-    if(ctx.measureText(test2).width>W-10&&line2!==''){ctx.fillText(line2.trim(),W/2,y2);line2=words2[i]+' ';y2+=26;}
-    else{line2=test2;}
+  function addText(text) {
+    for(var i=0;i<text.length;i++) cmd.push(text.charCodeAt(i));
   }
-  ctx.fillText(line2.trim(),W/2,y2);y2+=30;
-  ctx.font='bold 18px monospace';ctx.textAlign='center';
-  ctx.fillText(ean,W/2,y2);y2+=20;
-  ctx.fillRect(10,y2,W-20,2);y2+=12;
-  ctx.font='16px monospace';ctx.textAlign='left';
-  ctx.fillText('CAI: '+cai,10,y2);y2+=22;
-  ctx.fillText('PID: '+pid,10,y2);
+  function addLine(text) { addText(text); cmd.push(0x0A); }
 
-  // Converti canvas in bitmap 1bpp per MX06
-  var imgData = ctx.getImageData(0,0,W,finalH);
-  var packets = [];
+  // Init
+  addBytes(ESC, 0x40);
+  // Center
+  addBytes(ESC, 0x61, 0x01);
+  // Bold + double size
+  addBytes(ESC, 0x45, 0x01);
+  addBytes(GS, 0x21, 0x01);
+  addLine(desc);
+  addBytes(GS, 0x21, 0x00);
+  addBytes(ESC, 0x45, 0x00);
+  cmd.push(0x0A);
 
-  // Comando inizio stampa
-  packets = packets.concat(mx06Packet(0xBE, [0x01])); // start
-  packets = packets.concat(mx06Packet(0xA1, [0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])); // settings
+  // EAN-13 barcode — metodo NV (GS k type 2)
+  addBytes(GS, 0x68, 60);   // height
+  addBytes(GS, 0x77, 2);    // width
+  addBytes(GS, 0x48, 2);    // HRI below
+  addBytes(GS, 0x66, 0);    // font A
+  // GS k [type=67=EAN13] [len=13] [data]
+  addBytes(GS, 0x6B, 67, 13);
+  for(var i=0;i<13;i++) addBytes(ean.charCodeAt(i));
+  cmd.push(0x0A);
+  cmd.push(0x0A);
 
-  // Manda righe bitmap
-  var bytesPerRow = W / 8;
-  for(var row=0; row<finalH; row++) {
-    var rowBytes = [];
-    for(var col=0; col<W; col+=8) {
-      var b = 0;
-      for(var bit=0; bit<8; bit++) {
-        var px = (row*W + col+bit) * 4;
-        var gray = imgData.data[px]*0.299 + imgData.data[px+1]*0.587 + imgData.data[px+2]*0.114;
-        if(gray < 128) b |= (0x80 >> bit);
-      }
-      rowBytes.push(b);
-    }
-    packets = packets.concat(mx06Packet(0xA2, rowBytes));
-  }
+  // Left align, details
+  addBytes(ESC, 0x61, 0x00);
+  addLine('--------------------------------');
+  addBytes(ESC, 0x45, 0x01);
+  addText('CAI: ');
+  addBytes(ESC, 0x45, 0x00);
+  addLine(cai);
+  addBytes(ESC, 0x45, 0x01);
+  addText('PID: ');
+  addBytes(ESC, 0x45, 0x00);
+  addLine(pid);
 
-  // Fine stampa + feed
-  packets = packets.concat(mx06Packet(0xBE, [0x00]));
-  packets = packets.concat(mx06Packet(0xA9, [0x40, 0x00])); // feed
+  // Feed + cut
+  addBytes(ESC, 0x64, 3);   // feed 3 lines
+  addBytes(GS, 0x56, 0x01); // partial cut
 
-  return new Uint8Array(packets);
+  return new Uint8Array(cmd);
 }
 
 // ── BLE PRINT (stampante termica C19) ────────────
@@ -901,7 +831,7 @@ document.getElementById('btPrintBtn').onclick = async function(){
   btStatus.textContent = 'Invio alla stampante...';
   btStatus.style.display = 'block';
   try {
-    var data  = buildMX06(current);
+    var data  = buildESCPOS(current);
     var chunk = 100; // chunk piccolo per BLE MX06
     for(var i=0;i<data.length;i+=chunk){
       var slice = data.slice(i, i+chunk);
@@ -915,7 +845,7 @@ document.getElementById('btPrintBtn').onclick = async function(){
   } catch(err){
     // Se writeValueWithoutResponse fallisce prova writeValue
     try {
-      var data2 = buildMX06(current);
+      var data2 = buildESCPOS(current);
       await bleChar.writeValue(data2);
       btStatus.textContent = 'Inviato!';
       btStatus.className = 'connected';
