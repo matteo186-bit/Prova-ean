@@ -206,6 +206,14 @@
     <div class="no-ean" id="noEanWarn">Nessun EAN disponibile per questo articolo.</div>
     <div class="result-footer">
       <div class="print-divider">Stampa etichetta</div>
+      <button class="btn" id="catPrintBtn" type="button" style="background:#2d7a2d;color:#fff;margin-top:4px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <polyline points="6 9 6 2 18 2 18 9"/>
+          <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
+          <rect x="6" y="14" width="12" height="8"/>
+        </svg>
+        Stampa con Cat-Printer
+      </button>
       <button class="btn" id="shareBtn" type="button" style="background:#ff6b00;color:#fff;margin-top:4px">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
           <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
@@ -851,6 +859,64 @@ document.getElementById('shareBtn').onclick = async function(){
     btStatus.textContent = 'Errore: ' + err.message;
     btStatus.className = 'error';
   }
+};
+
+// ── CAT-PRINTER ──────────────────────────────────
+document.getElementById('catPrintBtn').onclick = function(){
+  if(!current || !current.ean) return;
+  var btStatus = document.getElementById('btStatus');
+  btStatus.style.display = 'block';
+  btStatus.className = '';
+  btStatus.textContent = 'Generazione immagine...';
+
+  var canvas = generateLabelCanvas(current);
+  canvas.toBlob(function(blob){
+    var url = URL.createObjectURL(blob);
+    var filename = 'etichetta-' + current.ean + '.png';
+
+    // Prova Android Intent per Cat-Printer
+    // Cat-Printer package: cf.flinbein.catprinter o com.naitlee.catprinter
+    var intentUrl = 'intent://#Intent;action=android.intent.action.VIEW;type=image/png;S.browser_fallback_url=' + encodeURIComponent(url) + ';end';
+
+    // Usa Web Share API per condividere l'immagine
+    // Cat-Printer appare nel menu condivisione Android
+    var file = new File([blob], filename, {type:'image/png'});
+    if(navigator.canShare && navigator.canShare({files:[file]})){
+      navigator.share({
+        files: [file],
+        title: 'Etichetta ' + current.ean
+      }).then(function(){
+        btStatus.textContent = 'Immagine condivisa!';
+        btStatus.className = 'connected';
+      }).catch(function(e){
+        if(e.name !== 'AbortError'){
+          // Fallback: scarica e apri
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          btStatus.textContent = 'Immagine scaricata. Aprila con Cat-Printer.';
+          btStatus.className = 'connected';
+        } else {
+          btStatus.textContent = '';
+        }
+        URL.revokeObjectURL(url);
+      });
+    } else {
+      // Fallback diretto
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+      btStatus.textContent = 'Immagine scaricata. Aprila con Cat-Printer.';
+      btStatus.className = 'connected';
+    }
+  }, 'image/png');
 };
 
 document.getElementById('browserPrintBtn').onclick = function(){
