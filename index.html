@@ -218,7 +218,7 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
           <polyline points="6.5 6.5 17.5 17.5 12 23 12 1 17.5 6.5 6.5 17.5"/>
         </svg>
-        Connetti ZQ520 Bluetooth
+        Connetti stampante BLE
       </button>
       <!-- iOS: PrintConnect -->
       <button class="btn btn-ios" id="iosPrintBtn" type="button" style="display:none">
@@ -227,7 +227,7 @@
           <path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>
           <rect x="6" y="14" width="12" height="8"/>
         </svg>
-        Stampa con PrintConnect (Android/iOS)
+        Stampa con PrintConnect
       </button>
       <!-- Fallback browser print -->
       <button class="btn btn-primary" id="browserPrintBtn" type="button" style="margin-top:8px">
@@ -445,11 +445,19 @@ importDrop.addEventListener('drop', function(e){
 var isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
 var hasBT = 'bluetooth' in navigator;
 
-// Mostra PrintConnect su tutti (Android e iOS)
-// Il BT Web non funziona con stampanti Zebra Classic BT
-document.getElementById('iosPrintBtn').style.display='flex';
-document.getElementById('btConnectBtn').style.display='none';
-document.getElementById('btPrintBtn').style.display='none';
+// Android: mostra BLE connect + PrintConnect
+// iOS: solo PrintConnect
+if(isIOS){
+  document.getElementById('iosPrintBtn').style.display='flex';
+  document.getElementById('btConnectBtn').style.display='none';
+  document.getElementById('btPrintBtn').style.display='none';
+} else {
+  // Android: BLE diretto + PrintConnect come fallback
+  if(hasBT){
+    document.getElementById('btConnectBtn').style.display='flex';
+  }
+  document.getElementById('iosPrintBtn').style.display='flex';
+}
 
 // ── PWA INSTALL ───────────────────────────────
 var deferredPrompt=null;
@@ -702,6 +710,162 @@ document.getElementById('browserPrintBtn').onclick = function(){
   document.getElementById('plCai').textContent=current.cai;
   document.getElementById('plPid').textContent=current.pid;
   window.print();
+};
+
+// ── ESC/POS GENERATOR (58mm termica BLE) ────────
+function buildESCPOS(r) {
+  var desc = r.desc || '';
+  var ean  = r.ean  || '';
+  var cai  = r.cai  || '';
+  var pid  = r.pid  || '';
+
+  // Tronca descrizione
+  if(desc.length > 32) desc = desc.substring(0,30)+'..';
+
+  var ESC = 0x1B, GS = 0x1D;
+  var cmd = [];
+
+  function addBytes() {
+    for(var i=0;i<arguments.length;i++) cmd.push(arguments[i]);
+  }
+  function addText(text) {
+    for(var i=0;i<text.length;i++) cmd.push(text.charCodeAt(i));
+  }
+  function addLine(text) { addText(text); cmd.push(0x0A); }
+
+  // Init stampante
+  addBytes(ESC, 0x40);
+
+  // Align center
+  addBytes(ESC, 0x61, 0x01);
+
+  // Bold ON, testo grande
+  addBytes(ESC, 0x45, 0x01);
+  addBytes(GS, 0x21, 0x11); // doppia larghezza e altezza
+  addLine(desc);
+  addBytes(GS, 0x21, 0x00); // torno normale
+  addBytes(ESC, 0x45, 0x00);
+
+  // Spazio
+  cmd.push(0x0A);
+
+  // Barcode EAN-13
+  // GS h = altezza barcode (80 dots)
+  addBytes(GS, 0x68, 0x50);
+  // GS w = larghezza modulo (2)
+  addBytes(GS, 0x77, 0x02);
+  // GS H = posizione HRI (2 = sotto)
+  addBytes(GS, 0x48, 0x02);
+  // GS f = font HRI
+  addBytes(GS, 0x66, 0x00);
+  // GS k = stampa barcode EAN-13 (tipo 67 = EAN13)
+  addBytes(GS, 0x6B, 67, 13);
+  for(var i=0;i<ean.length;i++) addBytes(ean.charCodeAt(i));
+
+  // Spazio
+  cmd.push(0x0A);
+  cmd.push(0x0A);
+
+  // Linea separatrice
+  addLine('--------------------------------');
+
+  // Align left
+  addBytes(ESC, 0x61, 0x00);
+
+  // CAI e PID
+  addBytes(ESC, 0x45, 0x01); // bold
+  addText('CAI: '); addBytes(ESC, 0x45, 0x00);
+  addLine(cai);
+  addBytes(ESC, 0x45, 0x01);
+  addText('PID: '); addBytes(ESC, 0x45, 0x00);
+  addLine(pid);
+
+  // Feed e cut
+  cmd.push(0x0A);
+  cmd.push(0x0A);
+  cmd.push(0x0A);
+  // Full cut
+  addBytes(GS, 0x56, 0x41, 0x03);
+
+  return new Uint8Array(cmd);
+}
+
+// ── BLE PRINT (stampante termica C19) ────────────
+var bleDevice = null;
+var bleChar   = null;
+
+document.getElementById('btConnectBtn').onclick = async function(){
+  var btStatus = document.getElementById('btStatus');
+  btStatus.style.display = 'block';
+  btStatus.className = '';
+  btStatus.textContent = 'Ricerca stampante BLE...';
+
+  try {
+    // UUID esatti stampante MX06 (C19)
+    var MX06_SERVICE = '0000ae30-0000-1000-8000-00805f9b34fb';
+    var MX06_CHAR    = '0000ae01-0000-1000-8000-00805f9b34fb';
+
+    bleDevice = await navigator.bluetooth.requestDevice({
+      filters: [{name: 'MX06'}, {namePrefix: 'MX0'}, {namePrefix: 'Blue-Printer'}],
+      optionalServices: [MX06_SERVICE, '00001800-0000-1000-8000-00805f9b34fb']
+    });
+
+    btStatus.textContent = 'Connessione a ' + bleDevice.name + '...';
+    var server  = await bleDevice.gatt.connect();
+    var service = await server.getPrimaryService(MX06_SERVICE);
+    var writeChar = await service.getCharacteristic(MX06_CHAR);
+
+    if(!writeChar){
+      btStatus.textContent = 'Caratteristica scrittura non trovata.';
+      btStatus.className = 'error';
+      return;
+    }
+
+    bleChar = writeChar;
+    btStatus.textContent = 'Connesso: ' + (bleDevice.name || 'stampante');
+    btStatus.className = 'connected';
+
+    document.getElementById('btConnectBtn').style.display = 'none';
+    document.getElementById('btPrintBtn').style.display   = 'flex';
+
+    bleDevice.addEventListener('gattserverdisconnected', function(){
+      bleChar = null; bleDevice = null;
+      btStatus.textContent = 'Disconnesso — riconnetti';
+      btStatus.className = 'error';
+      document.getElementById('btPrintBtn').style.display   = 'none';
+      document.getElementById('btConnectBtn').style.display = 'flex';
+    });
+
+  } catch(err){
+    btStatus.textContent = 'Errore: ' + err.message;
+    btStatus.className = 'error';
+  }
+};
+
+document.getElementById('btPrintBtn').onclick = async function(){
+  if(!current || !bleChar) return;
+  var btStatus = document.getElementById('btStatus');
+  btStatus.textContent = 'Invio alla stampante...';
+  btStatus.style.display = 'block';
+  try {
+    var data  = buildESCPOS(current);
+    var chunk = 128; // chunk piccolo per BLE
+    for(var i=0;i<data.length;i+=chunk){
+      var slice = data.slice(i, i+chunk);
+      if(bleChar.properties.writeWithoutResponse){
+        await bleChar.writeValueWithoutResponse(slice);
+      } else {
+        await bleChar.writeValue(slice);
+      }
+      await new Promise(function(r){setTimeout(r,80);});
+    }
+    btStatus.textContent = 'Stampato!';
+    btStatus.className = 'connected';
+    if(navigator.vibrate) navigator.vibrate([100,50,100]);
+  } catch(err){
+    btStatus.textContent = 'Errore stampa: ' + err.message;
+    btStatus.className = 'error';
+  }
 };
 
 // ── EAN-13 SVG ────────────────────────────────
