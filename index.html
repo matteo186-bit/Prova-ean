@@ -882,30 +882,29 @@ document.getElementById('btConnectBtn').onclick = async function(){
 
     btStatus.textContent = 'Connessione a ' + (bleDevice.name || 'stampante') + '...';
     var server = await bleDevice.gatt.connect();
+    btStatus.textContent = 'Connesso! Ricerca servizi...';
 
-    // Prova prima il servizio MX06 specifico
     var writeChar = null;
-    try {
-      var service = await server.getPrimaryService(MX06_SERVICE);
-      writeChar = await service.getCharacteristic(MX06_CHAR);
-    } catch(e) {
-      // Fallback: cerca qualsiasi caratteristica scrivibile
-      var services = await server.getPrimaryServices();
-      for(var i=0;i<services.length;i++){
-        try {
-          var chars = await services[i].getCharacteristics();
-          for(var j=0;j<chars.length;j++){
-            if(chars[j].properties.writeWithoutResponse || chars[j].properties.write){
-              writeChar = chars[j]; break;
-            }
+    var services = await server.getPrimaryServices();
+    btStatus.textContent = 'Trovati ' + services.length + ' servizi, ricerca caratteristiche...';
+
+    for(var i=0;i<services.length;i++){
+      try {
+        var chars = await services[i].getCharacteristics();
+        for(var j=0;j<chars.length;j++){
+          var c = chars[j];
+          if(c.properties.writeWithoutResponse || c.properties.write){
+            writeChar = c;
+            btStatus.textContent = 'Caratteristica trovata: ' + c.uuid;
+            break;
           }
-          if(writeChar) break;
-        } catch(e2){}
-      }
+        }
+        if(writeChar) break;
+      } catch(e){}
     }
 
     if(!writeChar){
-      btStatus.textContent = 'Caratteristica scrittura non trovata.';
+      btStatus.textContent = 'Nessuna caratteristica di scrittura trovata.';
       btStatus.className = 'error';
       return;
     }
