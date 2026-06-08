@@ -712,7 +712,7 @@ document.getElementById('browserPrintBtn').onclick = function(){
   window.print();
 };
 
-// ── MX06 Cat-Printer Protocol ────────────────────
+// ── MX06 Printer Protocol ────────────────────────
 function mx06Packet(cmd, data) {
   var p = [0x51, 0x78, cmd, 0x00];
   var len = data ? data.length : 0;
@@ -724,86 +724,82 @@ function mx06Packet(cmd, data) {
   return p;
 }
 
+function strBytes(s) {
+  var b = [];
+  for(var i=0;i<s.length;i++) b.push(s.charCodeAt(i));
+  return b;
+}
+
 function buildMX06(r) {
-  var desc = (r.desc || '').substring(0, 24);
+  var desc = (r.desc || '').substring(0, 32);
   var ean  = r.ean  || '';
   var cai  = r.cai  || '';
   var pid  = r.pid  || '';
 
-  // MX06: larghezza 384px = 48 bytes per riga
-  var W = 384;
-
-  // Calcola altezza contenuto
-  var lineH = 30;
-  var lines = [];
-
-  // Descrizione (word wrap)
-  var words = desc.split(' ');
-  var line = '';
-  for(var i=0;i<words.length;i++){
-    var test = line + (line?'  ':'')+words[i];
-    if(test.length > 20 && line) { lines.push({text:line,bold:true,size:24}); line=words[i]; }
-    else line = test;
-  }
-  if(line) lines.push({text:line,bold:true,size:24});
-  lines.push({text:'',bold:false,size:16}); // spazio
-  lines.push({text:ean,bold:true,size:20,center:true});
-  lines.push({text:'--------------------------------',bold:false,size:14,center:true});
-  lines.push({text:'CAI: '+cai,bold:false,size:16});
-  lines.push({text:'PID: '+pid,bold:false,size:16});
-  lines.push({text:'',bold:false,size:16});
-  lines.push({text:'',bold:false,size:16});
-  lines.push({text:'',bold:false,size:16});
-
-  // Calcola altezza totale
-  var totalH = 0;
-  for(var i=0;i<lines.length;i++) totalH += (lines[i].size||16) + 8;
-
-  // Disegna su canvas
+  // Usiamo canvas offscreen per generare bitmap corretta
+  var W = 384, H = 300;
   var canvas = document.createElement('canvas');
-  canvas.width  = W;
-  canvas.height = totalH;
+  canvas.width = W;
+  canvas.height = H;
+  document.body.appendChild(canvas); // DEVE essere nel DOM per funzionare su Android
   var ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0,0,W,totalH);
-  ctx.fillStyle = '#000';
 
-  var y = 0;
-  for(var i=0;i<lines.length;i++){
-    var l = lines[i];
-    var sz = l.size || 16;
-    ctx.font = (l.bold?'bold ':'')+sz+'px monospace';
-    ctx.textAlign = l.center ? 'center' : 'left';
-    var x = l.center ? W/2 : 10;
-    y += sz + 4;
-    ctx.fillText(l.text, x, y);
-    y += 4;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#000000';
+
+  var y = 36;
+  // Descrizione bold
+  ctx.font = 'bold 26px Arial';
+  ctx.textAlign = 'center';
+  var maxW = W - 20;
+  var words = desc.split(' '), line = '';
+  for(var i=0;i<words.length;i++){
+    var t = line+(line?' ':'')+words[i];
+    if(ctx.measureText(t).width > maxW && line){
+      ctx.fillText(line, W/2, y); y+=32; line=words[i];
+    } else line=t;
   }
+  if(line){ ctx.fillText(line, W/2, y); y+=36; }
 
-  // Converti in 1bpp
-  var imgData = ctx.getImageData(0, 0, W, totalH);
+  // EAN
+  ctx.font = 'bold 22px monospace';
+  ctx.fillText(ean, W/2, y); y+=30;
+
+  // Linea
+  ctx.fillRect(10, y, W-20, 2); y+=14;
+
+  // CAI PID
+  ctx.font = '18px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('CAI: '+cai, 10, y); y+=26;
+  ctx.fillText('PID: '+pid, 10, y); y+=20;
+
+  var finalH = y + 20;
+
+  // Leggi pixels
+  var imgData = ctx.getImageData(0, 0, W, finalH);
+  document.body.removeChild(canvas); // Rimuovi dal DOM
+
   var px = imgData.data;
   var packets = [];
-
-  // Start
   packets = packets.concat(mx06Packet(0xBE, [0x01]));
   packets = packets.concat(mx06Packet(0xA1, [0x02,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]));
 
-  for(var row=0; row<totalH; row++){
-    var rowBytes = new Array(48).fill(0);
-    for(var col=0; col<W; col++){
-      var idx = (row*W+col)*4;
-      var gray = px[idx]*0.299 + px[idx+1]*0.587 + px[idx+2]*0.114;
-      if(gray < 128){
-        var bytePos = Math.floor(col/8);
-        var bitPos  = 7 - (col % 8);
-        rowBytes[bytePos] |= (1 << bitPos);
+  for(var row=0; row<finalH; row++){
+    var rowBytes = [];
+    for(var col=0; col<W; col+=8){
+      var b = 0;
+      for(var bit=0; bit<8; bit++){
+        var i4 = (row*W + col+bit)*4;
+        var g = px[i4]*0.299 + px[i4+1]*0.587 + px[i4+2]*0.114;
+        if(g < 128) b |= (0x80 >> bit);
       }
+      rowBytes.push(b);
     }
     packets = packets.concat(mx06Packet(0xA2, rowBytes));
   }
 
-  // End + feed
   packets = packets.concat(mx06Packet(0xBE, [0x00]));
   packets = packets.concat(mx06Packet(0xA9, [0x30, 0x00]));
 
