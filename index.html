@@ -718,8 +718,6 @@ function buildESCPOS(r) {
   var ean  = r.ean  || '';
   var cai  = r.cai  || '';
   var pid  = r.pid  || '';
-
-  // Tronca descrizione
   if(desc.length > 32) desc = desc.substring(0,30)+'..';
 
   var ESC = 0x1B, GS = 0x1D;
@@ -733,59 +731,44 @@ function buildESCPOS(r) {
   }
   function addLine(text) { addText(text); cmd.push(0x0A); }
 
-  // Init stampante
+  // Init
   addBytes(ESC, 0x40);
-
-  // Align center
+  // Center
   addBytes(ESC, 0x61, 0x01);
-
-  // Bold ON, testo grande
+  // Bold + double size
   addBytes(ESC, 0x45, 0x01);
-  addBytes(GS, 0x21, 0x11); // doppia larghezza e altezza
+  addBytes(GS, 0x21, 0x01);
   addLine(desc);
-  addBytes(GS, 0x21, 0x00); // torno normale
+  addBytes(GS, 0x21, 0x00);
   addBytes(ESC, 0x45, 0x00);
-
-  // Spazio
   cmd.push(0x0A);
 
-  // Barcode EAN-13
-  // GS h = altezza barcode (80 dots)
-  addBytes(GS, 0x68, 0x50);
-  // GS w = larghezza modulo (2)
-  addBytes(GS, 0x77, 0x02);
-  // GS H = posizione HRI (2 = sotto)
-  addBytes(GS, 0x48, 0x02);
-  // GS f = font HRI
-  addBytes(GS, 0x66, 0x00);
-  // GS k = stampa barcode EAN-13 (tipo 67 = EAN13)
+  // EAN-13 barcode — metodo NV (GS k type 2)
+  addBytes(GS, 0x68, 60);   // height
+  addBytes(GS, 0x77, 2);    // width
+  addBytes(GS, 0x48, 2);    // HRI below
+  addBytes(GS, 0x66, 0);    // font A
+  // GS k [type=67=EAN13] [len=13] [data]
   addBytes(GS, 0x6B, 67, 13);
-  for(var i=0;i<ean.length;i++) addBytes(ean.charCodeAt(i));
-
-  // Spazio
+  for(var i=0;i<13;i++) addBytes(ean.charCodeAt(i));
   cmd.push(0x0A);
   cmd.push(0x0A);
 
-  // Linea separatrice
-  addLine('--------------------------------');
-
-  // Align left
+  // Left align, details
   addBytes(ESC, 0x61, 0x00);
-
-  // CAI e PID
-  addBytes(ESC, 0x45, 0x01); // bold
-  addText('CAI: '); addBytes(ESC, 0x45, 0x00);
+  addLine('--------------------------------');
+  addBytes(ESC, 0x45, 0x01);
+  addText('CAI: ');
+  addBytes(ESC, 0x45, 0x00);
   addLine(cai);
   addBytes(ESC, 0x45, 0x01);
-  addText('PID: '); addBytes(ESC, 0x45, 0x00);
+  addText('PID: ');
+  addBytes(ESC, 0x45, 0x00);
   addLine(pid);
 
-  // Feed e cut
-  cmd.push(0x0A);
-  cmd.push(0x0A);
-  cmd.push(0x0A);
-  // Full cut
-  addBytes(GS, 0x56, 0x41, 0x03);
+  // Feed + cut
+  addBytes(ESC, 0x64, 3);   // feed 3 lines
+  addBytes(GS, 0x56, 0x01); // partial cut
 
   return new Uint8Array(cmd);
 }
@@ -849,22 +832,27 @@ document.getElementById('btPrintBtn').onclick = async function(){
   btStatus.style.display = 'block';
   try {
     var data  = buildESCPOS(current);
-    var chunk = 128; // chunk piccolo per BLE
+    var chunk = 100; // chunk piccolo per BLE MX06
     for(var i=0;i<data.length;i+=chunk){
       var slice = data.slice(i, i+chunk);
-      if(bleChar.properties.writeWithoutResponse){
-        await bleChar.writeValueWithoutResponse(slice);
-      } else {
-        await bleChar.writeValue(slice);
-      }
-      await new Promise(function(r){setTimeout(r,80);});
+      // MX06 usa WRITE NO RESPONSE (0xAE01)
+      await bleChar.writeValueWithoutResponse(slice);
+      await new Promise(function(r){setTimeout(r,100);});
     }
-    btStatus.textContent = 'Stampato!';
+    btStatus.textContent = 'Inviato! Attendi la stampa...';
     btStatus.className = 'connected';
     if(navigator.vibrate) navigator.vibrate([100,50,100]);
   } catch(err){
-    btStatus.textContent = 'Errore stampa: ' + err.message;
-    btStatus.className = 'error';
+    // Se writeValueWithoutResponse fallisce prova writeValue
+    try {
+      var data2 = buildESCPOS(current);
+      await bleChar.writeValue(data2);
+      btStatus.textContent = 'Inviato!';
+      btStatus.className = 'connected';
+    } catch(err2){
+      btStatus.textContent = 'Errore: ' + err2.message;
+      btStatus.className = 'error';
+    }
   }
 };
 
