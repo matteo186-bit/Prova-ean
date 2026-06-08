@@ -760,7 +760,7 @@ function generateLabelCanvas(r) {
   y += 14;
 
   // CAI e PID
-  ctx.font = 'bold 20px monospace';
+  ctx.font = 'bold 16px monospace';
   ctx.textAlign = 'left';
   ctx.fillText('CAI: ' + cai, pad, y);
   ctx.textAlign = 'right';
@@ -896,20 +896,20 @@ async function buildMX06(r) {
   ctx.fillRect(0, 0, W, 400);
   ctx.fillStyle = '#000000';
 
-  var y = 10, pad = 10;
+  var y = 4, pad = 8;
 
-  // Descrizione bold word wrap
-  ctx.font = 'bold 24px Arial';
+  // Descrizione bold word wrap - font piccolo
+  ctx.font = 'bold 18px Arial';
   ctx.textAlign = 'center';
   var words = desc.split(' '), line = '';
   for(var i=0;i<words.length;i++){
     var t = line+(line?' ':'')+words[i];
     if(ctx.measureText(t).width > W-pad*2 && line){
-      y += 28; ctx.fillText(line, W/2, y); line=words[i];
+      y += 20; ctx.fillText(line, W/2, y); line=words[i];
     } else line=t;
   }
-  y += 30; ctx.fillText(line, W/2, y);
-  y += 12;
+  y += 22; ctx.fillText(line, W/2, y);
+  y += 8;
 
   // Barcode EAN-13
   var L=[[0,0,0,1,1,0,1],[0,0,1,1,0,0,1],[0,0,1,0,0,1,1],[0,1,1,1,1,0,1],[0,1,0,0,0,1,1],[0,1,1,0,0,0,1],[0,1,0,1,1,1,1],[0,1,1,1,0,1,1],[0,1,1,0,1,1,1],[0,0,0,1,0,1,1]];
@@ -925,7 +925,7 @@ async function buildMX06(r) {
   if(bw<1)bw=1;
   var totalBW = bars.length*bw;
   var bx = Math.floor((W-totalBW)/2);
-  var bh = 80;
+  var bh = 60;
   ctx.fillStyle='#000';
   for(var i=0;i<bars.length;i++){
     if(bars[i]) ctx.fillRect(bx+i*bw, y, bw, bh);
@@ -933,7 +933,7 @@ async function buildMX06(r) {
   y += bh + 6;
 
   // Numero EAN
-  ctx.font = 'bold 20px monospace';
+  ctx.font = 'bold 16px monospace';
   ctx.textAlign = 'center';
   ctx.fillText(ean, W/2, y);
   y += 18;
@@ -943,7 +943,7 @@ async function buildMX06(r) {
   y += 14;
 
   // CAI e PID
-  ctx.font = 'bold 18px monospace';
+  ctx.font = 'bold 14px monospace';
   ctx.textAlign = 'left';
   ctx.fillText('CAI: '+cai, pad, y);
   ctx.textAlign = 'right';
@@ -1067,27 +1067,14 @@ document.getElementById('btPrintBtn').onclick = async function(){
     var data = await buildMX06(current);
     btStatus.textContent = 'Invio ' + data.length + ' bytes...';
 
-    // Invia pacchetto per pacchetto con delay generoso
-    // Ogni pacchetto MX06 inizia con 0x51 0x78
-    var i = 0;
-    var sent = 0;
-    while(i < data.length) {
-      // Trova fine pacchetto (0xFF come ultimo byte)
-      // I pacchetti MX06 terminano con 0xFF
-      var pktStart = i;
-      // Cerca il prossimo 0xFF
-      var pktEnd = i;
-      while(pktEnd < data.length && data[pktEnd] !== 0xFF) pktEnd++;
-      pktEnd++; // includi 0xFF
-      
-      var pkt = data.slice(pktStart, pktEnd);
-      await bleChar.writeValueWithoutResponse(pkt);
-      await new Promise(function(r){ setTimeout(r, 30); });
-      i = pktEnd;
-      sent++;
+    var chunk = 100;
+    for(var i=0;i<data.length;i+=chunk){
+      var slice = data.slice(i, i+chunk);
+      await bleChar.writeValueWithoutResponse(slice);
+      await new Promise(function(r){setTimeout(r,100);});
     }
 
-    btStatus.textContent = 'Inviati ' + sent + ' pacchetti. Attendi...';
+    btStatus.textContent = 'Inviato! Attendi la stampa...';
     btStatus.className = 'connected';
     if(navigator.vibrate) navigator.vibrate([100,50,100]);
   } catch(err){
