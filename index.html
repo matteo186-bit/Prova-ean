@@ -864,22 +864,123 @@ document.getElementById('browserPrintBtn').onclick = function(){
 };
 
 // ── MX06 Printer Protocol ────────────────────────
+// Protocol ref: github.com/NaitLee/Cat-Printer
+// github.com/fulda1/Thermal_Printer/wiki/Cat-printer-protocol
+
+function mx06Crc(data) {
+  var crc = 0;
+  for(var i=0;i<data.length;i++) crc ^= data[i];
+  return crc;
+}
+
 function mx06Packet(cmd, data) {
+  // 0x51 0x78 [cmd] [dir=0] [len_lo] [len_hi] [data...] [crc] 0xFF
   var p = [0x51, 0x78, cmd, 0x00];
   var len = data ? data.length : 0;
   p.push(len & 0xFF, (len >> 8) & 0xFF);
   if(data) for(var i=0;i<data.length;i++) p.push(data[i]);
-  var chk = 0;
-  if(data) for(var i=0;i<data.length;i++) chk ^= data[i];
-  p.push(chk, 0xFF);
+  p.push(mx06Crc(data || []));
+  p.push(0xFF);
   return p;
 }
 
 function buildMX06(r) {
   var ean = r.ean || '';
-  var W = 384, bpr = 48; // bytes per riga
+  var desc = (r.desc || '').toUpperCase().substring(0,32);
+  var cai  = (r.cai || '').toUpperCase();
+  var pid  = r.pid  || '';
+  var W = 384, bpr = 48;
 
-  // Solo barcode EAN-13 + numero — minimo indispensabile
+  // Costruisci bitmap
+  var H = 120;
+  var bitmap = new Uint8Array(bpr * H);
+
+  function setPixel(x, y) {
+    if(x<0||x>=W||y<0||y>=H) return;
+    bitmap[y*bpr + Math.floor(x/8)] |= (1 << (7-(x%8)));
+  }
+
+  // Font 3x5 minimale per cifre e lettere
+  var F = {
+    '0':[[1,1,1],[1,0,1],[1,0,1],[1,0,1],[1,1,1]],
+    '1':[[0,1,0],[1,1,0],[0,1,0],[0,1,0],[1,1,1]],
+    '2':[[1,1,1],[0,0,1],[0,1,0],[1,0,0],[1,1,1]],
+    '3':[[1,1,1],[0,0,1],[0,1,1],[0,0,1],[1,1,1]],
+    '4':[[1,0,1],[1,0,1],[1,1,1],[0,0,1],[0,0,1]],
+    '5':[[1,1,1],[1,0,0],[1,1,1],[0,0,1],[1,1,1]],
+    '6':[[1,1,1],[1,0,0],[1,1,1],[1,0,1],[1,1,1]],
+    '7':[[1,1,1],[0,0,1],[0,1,0],[0,1,0],[0,1,0]],
+    '8':[[1,1,1],[1,0,1],[1,1,1],[1,0,1],[1,1,1]],
+    '9':[[1,1,1],[1,0,1],[1,1,1],[0,0,1],[1,1,1]],
+    'A':[[0,1,0],[1,0,1],[1,1,1],[1,0,1],[1,0,1]],
+    'B':[[1,1,0],[1,0,1],[1,1,0],[1,0,1],[1,1,0]],
+    'C':[[0,1,1],[1,0,0],[1,0,0],[1,0,0],[0,1,1]],
+    'D':[[1,1,0],[1,0,1],[1,0,1],[1,0,1],[1,1,0]],
+    'E':[[1,1,1],[1,0,0],[1,1,0],[1,0,0],[1,1,1]],
+    'F':[[1,1,1],[1,0,0],[1,1,0],[1,0,0],[1,0,0]],
+    'G':[[0,1,1],[1,0,0],[1,0,1],[1,0,1],[0,1,1]],
+    'H':[[1,0,1],[1,0,1],[1,1,1],[1,0,1],[1,0,1]],
+    'I':[[1,1,1],[0,1,0],[0,1,0],[0,1,0],[1,1,1]],
+    'J':[[0,0,1],[0,0,1],[0,0,1],[1,0,1],[0,1,0]],
+    'K':[[1,0,1],[1,0,1],[1,1,0],[1,0,1],[1,0,1]],
+    'L':[[1,0,0],[1,0,0],[1,0,0],[1,0,0],[1,1,1]],
+    'M':[[1,0,1],[1,1,1],[1,0,1],[1,0,1],[1,0,1]],
+    'N':[[1,0,1],[1,1,1],[1,1,1],[1,0,1],[1,0,1]],
+    'O':[[0,1,0],[1,0,1],[1,0,1],[1,0,1],[0,1,0]],
+    'P':[[1,1,0],[1,0,1],[1,1,0],[1,0,0],[1,0,0]],
+    'Q':[[0,1,0],[1,0,1],[1,0,1],[1,1,1],[0,1,1]],
+    'R':[[1,1,0],[1,0,1],[1,1,0],[1,0,1],[1,0,1]],
+    'S':[[0,1,1],[1,0,0],[0,1,0],[0,0,1],[1,1,0]],
+    'T':[[1,1,1],[0,1,0],[0,1,0],[0,1,0],[0,1,0]],
+    'U':[[1,0,1],[1,0,1],[1,0,1],[1,0,1],[1,1,1]],
+    'V':[[1,0,1],[1,0,1],[1,0,1],[1,0,1],[0,1,0]],
+    'W':[[1,0,1],[1,0,1],[1,0,1],[1,1,1],[1,0,1]],
+    'X':[[1,0,1],[1,0,1],[0,1,0],[1,0,1],[1,0,1]],
+    'Y':[[1,0,1],[1,0,1],[0,1,0],[0,1,0],[0,1,0]],
+    'Z':[[1,1,1],[0,0,1],[0,1,0],[1,0,0],[1,1,1]],
+    ' ':[[0,0,0],[0,0,0],[0,0,0],[0,0,0],[0,0,0]],
+    '.':[[0,0,0],[0,0,0],[0,0,0],[0,1,0],[0,1,0]],
+    '-':[[0,0,0],[0,0,0],[1,1,1],[0,0,0],[0,0,0]],
+    '/':[[0,0,1],[0,0,1],[0,1,0],[1,0,0],[1,0,0]],
+    ':':[[0,1,0],[0,0,0],[0,0,0],[0,0,0],[0,1,0]],
+    '_':[[0,0,0],[0,0,0],[0,0,0],[0,0,0],[1,1,1]]
+  };
+
+  function drawChar(ch, x, y, scale) {
+    var g = F[ch] || F[' '];
+    for(var row=0;row<5;row++){
+      for(var col=0;col<3;col++){
+        if(g[row][col]){
+          for(var sy=0;sy<scale;sy++)
+            for(var sx=0;sx<scale;sx++)
+              setPixel(x+col*scale+sx, y+row*scale+sy);
+        }
+      }
+    }
+    return x + (3+1)*scale;
+  }
+
+  function drawText(text, startX, y, scale) {
+    var x = startX;
+    for(var i=0;i<text.length;i++){
+      x = drawChar(text[i].toUpperCase(), x, y, scale);
+      if(x + 4*scale > W) { x=startX; y+=(5+2)*scale; }
+    }
+    return y + (5+2)*scale;
+  }
+
+  function drawLine(y) {
+    for(var x=0;x<W;x++) setPixel(x,y);
+  }
+
+  var y = 2;
+
+  // Descrizione scala 2
+  y = drawText(desc, 4, y, 2);
+  y += 2;
+  drawLine(y); y += 3;
+
+  // Barcode EAN-13
   var L=[[0,0,0,1,1,0,1],[0,0,1,1,0,0,1],[0,0,1,0,0,1,1],[0,1,1,1,1,0,1],[0,1,0,0,0,1,1],[0,1,1,0,0,0,1],[0,1,0,1,1,1,1],[0,1,1,1,0,1,1],[0,1,1,0,1,1,1],[0,0,0,1,0,1,1]];
   var G=L.map(function(b){return b.map(function(x){return x?0:1}).reverse();});
   var R=L.map(function(b){return b.map(function(x){return x?0:1});});
@@ -889,39 +990,50 @@ function buildMX06(r) {
   bars=bars.concat([0,1,0,1,0]);
   for(var i=0;i<6;i++) bars=bars.concat(R[d[i+7]]);
   bars=bars.concat([1,0,1]);
-
   var bw=2, totalBW=bars.length*bw;
   var bx=Math.floor((W-totalBW)/2);
-  var bh=50; // barcode height in righe
-  var H=bh+8; // totale righe
-
-  var bitmap=new Uint8Array(bpr*H);
-
-  // Disegna barcode
-  for(var row=0;row<bh;row++){
+  var bh=40;
+  for(var row=y;row<y+bh&&row<H;row++){
     for(var bi=0;bi<bars.length;bi++){
       if(bars[bi]){
-        for(var bxi=0;bxi<bw;bxi++){
-          var col=bx+bi*bw+bxi;
-          if(col>=0&&col<W){
-            bitmap[row*bpr+Math.floor(col/8)]|=(1<<(7-(col%8)));
-          }
-        }
+        for(var bxi=0;bxi<bw;bxi++) setPixel(bx+bi*bw+bxi, row);
       }
     }
   }
+  y += bh+2;
 
-  var packets=[];
-  packets=packets.concat(mx06Packet(0xBE,[0x01]));
-  packets=packets.concat(mx06Packet(0xA1,[0x02,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00]));
+  // EAN numero scala 1
+  y = drawText(ean, Math.floor((W-ean.length*4)/2), y, 1);
+  y += 1;
+  drawLine(y); y += 3;
 
-  for(var row2=0;row2<H;row2++){
+  // CAI e PID scala 1
+  y = drawText('CAI:'+cai, 4, y, 1);
+  y = drawText('PID:'+pid, 4, y, 1);
+  y += 2;
+
+  var finalH = Math.min(y, H);
+
+  // Pacchetti
+  var packets = [];
+
+  // Lattice control (start) — costanti dal protocollo Cat-Printer
+  packets = packets.concat(mx06Packet(0xA6, [0xAA,0x55,0x17,0x38,0x44,0x5F,0x5F,0x5F,0x44,0x38,0x2C]));
+
+  // Qualita stampa
+  packets = packets.concat(mx06Packet(0xA4, [0x35]));
+
+  // Righe bitmap
+  for(var row2=0;row2<finalH;row2++){
     var rowBytes=Array.from(bitmap.slice(row2*bpr,(row2+1)*bpr));
-    packets=packets.concat(mx06Packet(0xA2,rowBytes));
+    packets=packets.concat(mx06Packet(0xA2, rowBytes));
   }
 
-  packets=packets.concat(mx06Packet(0xBE,[0x00]));
-  packets=packets.concat(mx06Packet(0xA9,[0x30,0x00]));
+  // Feed carta
+  packets=packets.concat(mx06Packet(0xA1, [0x30,0x00]));
+
+  // Lattice control (end)
+  packets=packets.concat(mx06Packet(0xA6, [0xAA,0x55,0x17,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x17]));
 
   return new Uint8Array(packets);
 }
