@@ -875,62 +875,88 @@ function mx06Packet(cmd, data) {
   return p;
 }
 
-function strBytes(s) {
-  var b = [];
-  for(var i=0;i<s.length;i++) b.push(s.charCodeAt(i));
-  return b;
-}
-
-function buildMX06(r) {
+async function buildMX06(r) {
   var desc = (r.desc || '').substring(0, 32);
   var ean  = r.ean  || '';
   var cai  = r.cai  || '';
   var pid  = r.pid  || '';
 
-  // Usiamo canvas offscreen per generare bitmap corretta
-  var W = 384, H = 300;
+  var W = 384; // 48 bytes per riga
+
+  // Crea canvas nel DOM
   var canvas = document.createElement('canvas');
-  canvas.width = W;
-  canvas.height = H;
-  document.body.appendChild(canvas); // DEVE essere nel DOM per funzionare su Android
+  canvas.width  = W;
+  canvas.height = 400;
+  canvas.style.cssText = 'position:fixed;left:-9999px;top:0;';
+  document.body.appendChild(canvas);
   var ctx = canvas.getContext('2d');
 
+  // Sfondo bianco
   ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, W, H);
+  ctx.fillRect(0, 0, W, 400);
   ctx.fillStyle = '#000000';
 
-  var y = 36;
-  // Descrizione bold
-  ctx.font = 'bold 26px Arial';
+  var y = 10, pad = 10;
+
+  // Descrizione bold word wrap
+  ctx.font = 'bold 24px Arial';
   ctx.textAlign = 'center';
-  var maxW = W - 20;
   var words = desc.split(' '), line = '';
   for(var i=0;i<words.length;i++){
     var t = line+(line?' ':'')+words[i];
-    if(ctx.measureText(t).width > maxW && line){
-      ctx.fillText(line, W/2, y); y+=32; line=words[i];
+    if(ctx.measureText(t).width > W-pad*2 && line){
+      y += 28; ctx.fillText(line, W/2, y); line=words[i];
     } else line=t;
   }
-  if(line){ ctx.fillText(line, W/2, y); y+=36; }
+  y += 30; ctx.fillText(line, W/2, y);
+  y += 12;
 
-  // EAN
-  ctx.font = 'bold 22px monospace';
-  ctx.fillText(ean, W/2, y); y+=30;
+  // Barcode EAN-13
+  var L=[[0,0,0,1,1,0,1],[0,0,1,1,0,0,1],[0,0,1,0,0,1,1],[0,1,1,1,1,0,1],[0,1,0,0,0,1,1],[0,1,1,0,0,0,1],[0,1,0,1,1,1,1],[0,1,1,1,0,1,1],[0,1,1,0,1,1,1],[0,0,0,1,0,1,1]];
+  var G=L.map(function(b){return b.map(function(x){return x?0:1}).reverse();});
+  var R=L.map(function(b){return b.map(function(x){return x?0:1});});
+  var FDP=[[0,0,0,0,0,0],[0,0,1,0,1,1],[0,0,1,1,0,1],[0,0,1,1,1,0],[0,1,0,0,1,1],[0,1,1,0,0,1],[0,1,1,1,0,0],[0,1,0,1,0,1],[0,1,0,1,1,0],[0,1,1,0,1,0]];
+  var d=ean.split('').map(Number),par=FDP[d[0]],bars=[1,0,1];
+  for(var i=0;i<6;i++){bars=bars.concat(par[i]===0?L[d[i+1]]:G[d[i+1]]);}
+  bars=bars.concat([0,1,0,1,0]);
+  for(var i=0;i<6;i++){bars=bars.concat(R[d[i+7]]);}
+  bars=bars.concat([1,0,1]);
+  var bw = Math.floor((W-20)/bars.length);
+  if(bw<1)bw=1;
+  var totalBW = bars.length*bw;
+  var bx = Math.floor((W-totalBW)/2);
+  var bh = 80;
+  ctx.fillStyle='#000';
+  for(var i=0;i<bars.length;i++){
+    if(bars[i]) ctx.fillRect(bx+i*bw, y, bw, bh);
+  }
+  y += bh + 6;
 
-  // Linea
-  ctx.fillRect(10, y, W-20, 2); y+=14;
+  // Numero EAN
+  ctx.font = 'bold 20px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(ean, W/2, y);
+  y += 18;
 
-  // CAI PID
-  ctx.font = '18px monospace';
+  // Linea separatrice
+  ctx.fillRect(pad, y, W-pad*2, 2);
+  y += 14;
+
+  // CAI e PID
+  ctx.font = 'bold 18px monospace';
   ctx.textAlign = 'left';
-  ctx.fillText('CAI: '+cai, 10, y); y+=26;
-  ctx.fillText('PID: '+pid, 10, y); y+=20;
+  ctx.fillText('CAI: '+cai, pad, y);
+  ctx.textAlign = 'right';
+  ctx.fillText('PID: '+pid, W-pad, y);
+  y += 20;
 
-  var finalH = y + 20;
+  var finalH = y;
 
-  // Leggi pixels
+  // Aspetta che il browser finisca di renderizzare
+  await new Promise(function(res){ setTimeout(res, 50); });
+
   var imgData = ctx.getImageData(0, 0, W, finalH);
-  document.body.removeChild(canvas); // Rimuovi dal DOM
+  document.body.removeChild(canvas);
 
   var px = imgData.data;
   var packets = [];
@@ -940,19 +966,19 @@ function buildMX06(r) {
   for(var row=0; row<finalH; row++){
     var rowBytes = [];
     for(var col=0; col<W; col+=8){
-      var b = 0;
-      for(var bit=0; bit<8; bit++){
-        var i4 = (row*W + col+bit)*4;
-        var g = px[i4]*0.299 + px[i4+1]*0.587 + px[i4+2]*0.114;
-        if(g < 128) b |= (0x80 >> bit);
+      var b=0;
+      for(var bit=0;bit<8;bit++){
+        var i4=(row*W+col+bit)*4;
+        var gray=px[i4]*0.299+px[i4+1]*0.587+px[i4+2]*0.114;
+        if(gray<128) b|=(0x80>>bit);
       }
       rowBytes.push(b);
     }
-    packets = packets.concat(mx06Packet(0xA2, rowBytes));
+    packets=packets.concat(mx06Packet(0xA2, rowBytes));
   }
 
-  packets = packets.concat(mx06Packet(0xBE, [0x00]));
-  packets = packets.concat(mx06Packet(0xA9, [0x30, 0x00]));
+  packets=packets.concat(mx06Packet(0xBE,[0x00]));
+  packets=packets.concat(mx06Packet(0xA9,[0x30,0x00]));
 
   return new Uint8Array(packets);
 }
@@ -1037,7 +1063,7 @@ document.getElementById('btPrintBtn').onclick = async function(){
   btStatus.textContent = 'Invio alla stampante...';
   btStatus.style.display = 'block';
   try {
-    var data  = buildMX06(current);
+    var data  = await buildMX06(current);
     var chunk = 100; // chunk piccolo per BLE MX06
     for(var i=0;i<data.length;i+=chunk){
       var slice = data.slice(i, i+chunk);
@@ -1051,7 +1077,7 @@ document.getElementById('btPrintBtn').onclick = async function(){
   } catch(err){
     // Se writeValueWithoutResponse fallisce prova writeValue
     try {
-      var data2 = buildMX06(current);
+      var data2 = await buildMX06(current);
       await bleChar.writeValue(data2);
       btStatus.textContent = 'Inviato!';
       btStatus.className = 'connected';
